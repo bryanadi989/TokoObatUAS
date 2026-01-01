@@ -1,112 +1,108 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, Linking, ActivityIndicator, Alert } from 'react-native';
+import { auth, db } from '../../services/firebaseConfig';
+import { doc, onSnapshot, updateDoc, arrayRemove } from "firebase/firestore";
+import { Ionicons } from '@expo/vector-icons';
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+export default function ExploreScreen() {
+  const [cartItems, setCartItems] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-export default function TabTwoScreen() {
+  const primaryBlue = '#3498db'; 
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const unsub = onSnapshot(doc(db, "users", user.uid), (doc) => {
+      if (doc.exists()) {
+        setCartItems(doc.data().cart || []);
+      }
+      setLoading(false);
+    });
+
+    return () => unsub();
+  }, []);
+
+  const deleteItem = async (item: any) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      const userDocRef = doc(db, "users", user.uid);
+      await updateDoc(userDocRef, {
+        cart: arrayRemove(item)
+      });
+    } catch (error) {
+      Alert.alert("Gagal", "Gagal menghapus produk.");
+    }
+  };
+
+  const sendToWA = () => {
+    let message = "Halo Apoteker, saya ingin konsultasi mengenai:\n";
+    cartItems.forEach((item: any) => { message += `\n- ${item.name}`; });
+    Linking.openURL(`https://wa.me/6289694176828?text=${encodeURIComponent(message)}`);
+  };
+
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={primaryBlue} /></View>;
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Keranjang Konsultasi</Text>
+        <Text style={styles.headerSubtitle}>{cartItems.length} Produk terpilih</Text>
+      </View>
+
+      <FlatList
+        data={cartItems}
+        keyExtractor={(item, index) => index.toString()}
+        renderItem={({ item }) => (
+          <View style={styles.itemCard}>
+            <View style={styles.itemIcon}>
+              <Ionicons name="medical" size={20} color={primaryBlue} />
+            </View>
+            <View style={styles.itemInfo}>
+              <Text style={styles.itemName}>{item.name}</Text>
+              <Text style={styles.itemPrice}>{item.price}</Text>
+            </View>
+            {/* TOMBOL HAPUS */}
+            <TouchableOpacity onPress={() => deleteItem(item)} style={styles.deleteButton}>
+              <Ionicons name="trash-outline" size={22} color="#e74c3c" />
+            </TouchableOpacity>
+          </View>
+        )}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Ionicons name="cart-outline" size={80} color="#d1d9e6" />
+            <Text style={styles.emptyText}>Keranjang Anda masih kosong.</Text>
+          </View>
+        }
+      />
+
+      {cartItems.length > 0 && (
+        <TouchableOpacity style={[styles.btn, { backgroundColor: primaryBlue }]} onPress={sendToWA}>
+          <Ionicons name="logo-whatsapp" size={20} color="#fff" />
+          <Text style={styles.btnText}>Konsultasi via WhatsApp</Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
+  container: { flex: 1, backgroundColor: '#f0f4f8' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { padding: 25, paddingTop: 60, backgroundColor: '#fff', borderBottomLeftRadius: 30, borderBottomRightRadius: 30, elevation: 2 },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#2c3e50' },
+  headerSubtitle: { fontSize: 14, color: '#95a5a6', marginTop: 5 },
+  itemCard: { flexDirection: 'row', padding: 15, backgroundColor: '#fff', marginHorizontal: 20, marginTop: 15, borderRadius: 15, alignItems: 'center', elevation: 1 },
+  itemIcon: { width: 40, height: 40, backgroundColor: '#e3f2fd', borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  itemInfo: { flex: 1, marginLeft: 15 },
+  itemName: { fontSize: 16, fontWeight: 'bold', color: '#34495e' },
+  itemPrice: { fontSize: 14, color: '#3498db', marginTop: 2 },
+  deleteButton: { padding: 10 },
+  empty: { alignItems: 'center', marginTop: 100 },
+  emptyText: { marginTop: 10, color: '#bdc3c7', fontSize: 16 },
+  btn: { margin: 20, flexDirection: 'row', gap: 10, padding: 18, borderRadius: 15, alignItems: 'center', justifyContent: 'center', elevation: 3 },
+  btnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
 });
